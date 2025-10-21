@@ -47,6 +47,9 @@ pipeline {
                     else
                         pip install --break-system-packages pytest
                     fi
+
+                    # Add project root to PYTHONPATH so imports like "from src..." work
+                    export PYTHONPATH=$PYTHONPATH:$(pwd)
                     
                     # Run tests
                     pytest src/test/python --maxfail=1 --disable-warnings -q
