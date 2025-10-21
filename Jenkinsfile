@@ -39,7 +39,7 @@ pipeline {
                 sh '''
                     python3 --version
                     if [ -f requirements.txt ]; then
-                        pip install -r requirements.txt
+                        pip install --break-system-packages -r requirements.txt
                     fi
                     if [ -d src/test/python ]; then
                         pytest src/test/python --maxfail=1 --disable-warnings -q
