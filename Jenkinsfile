@@ -32,18 +32,24 @@ pipeline {
 
         stage('Test Python') {
             when {
-                expression { fileExists('src/main/python') || fileExists('src/test/python') }
+                expression { fileExists('src/test/python') }
             }
             steps {
                 echo 'Testing Python code...'
                 sh '''
+                    set -e
+                    echo "Python version:"
                     python3 --version
-                    if [ -f requirements.txt ]; then
-                        pip install --break-system-packages -r requirements.txt
+                    
+                    # Install dependencies (if any)
+                    if [ -f src/test/python/requirements.txt ]; then
+                        pip install --break-system-packages -r src/test/python/requirements.txt
+                    else
+                        pip install --break-system-packages pytest
                     fi
-                    if [ -d src/test/python ]; then
-                        pytest src/test/python --maxfail=1 --disable-warnings -q
-                    fi
+                    
+                    # Run tests
+                    pytest src/test/python --maxfail=1 --disable-warnings -q
                 '''
             }
         }
