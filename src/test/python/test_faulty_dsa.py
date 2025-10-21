@@ -1,5 +1,5 @@
 import pytest
-from src.faulty_dsa import quicksort, binary_search, shortest_path_unweighted, DSU
+from src.main.python.faulty_dsa import quicksort, binary_search, shortest_path_unweighted, DSU
 
 
 # ---------------------- quicksort ----------------------
