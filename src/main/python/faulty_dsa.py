@@ -1,30 +1,31 @@
 from collections import deque
 from typing import Dict, List, Optional
 
+
 # ------------------------------------------------------------
-# 1) Quicksort — fixed (keeps all duplicates)
+# 1) Quicksort (fixed: preserves duplicates equal to the pivot)
 # ------------------------------------------------------------
 def quicksort(nums: List[int]) -> List[int]:
     """
-    Return a sorted copy of nums (stable on equal values).
-    Fix: partition into < pivot, == pivot, > pivot so duplicates are preserved.
+    Return a sorted copy of nums using quicksort. Fixed to preserve
+    duplicates equal to the pivot.
     """
     if len(nums) <= 1:
         return nums[:]
     pivot = nums[len(nums) // 2]
-    left  = [x for x in nums if x < pivot]
-    mid   = [x for x in nums if x == pivot]
+    left = [x for x in nums if x < pivot]
+    middle = [x for x in nums if x == pivot]
     right = [x for x in nums if x > pivot]
-    return quicksort(left) + mid + quicksort(right)
+    return quicksort(left) + middle + quicksort(right)
 
 
 # ------------------------------------------------------------
-# 2) Binary search — fixed (checks rightmost element too)
+# 2) Binary search (fixed: correct loop bounds)
 # ------------------------------------------------------------
 def binary_search(arr: List[int], target: int) -> int:
     """
     Returns index of target in sorted arr, or -1 if not found.
-    Fix: loop condition uses <= so hi is examined.
+    Corrected while loop to ensure the rightmost element is examined.
     """
     lo, hi = 0, len(arr) - 1
     while lo <= hi:
@@ -39,29 +40,27 @@ def binary_search(arr: List[int], target: int) -> int:
 
 
 # ------------------------------------------------------------
-# 3) Unweighted shortest path — fixed (true BFS with FIFO queue)
+# 3) Unweighted shortest path (fixed: use BFS by popleft)
 # ------------------------------------------------------------
 def shortest_path_unweighted(
     graph: Dict[int, List[int]], start: int, goal: int
 ) -> Optional[List[int]]:
     """
-    BFS shortest path in an unweighted graph. Returns node list from start to goal,
-    or None if unreachable.
-    Fix: use popleft() to ensure FIFO (BFS), store parents to reconstruct path.
+    BFS for shortest path in an unweighted graph. Uses FIFO queue
+    (popleft) so the first discovered path to goal is guaranteed
+    to be shortest (in number of edges).
     """
     if start == goal:
         return [start]
-
     q = deque([start])
     parent = {start: None}
-
     while q:
-        node = q.popleft()
+        node = q.popleft()  # fixed: FIFO
         for nbr in graph.get(node, []):
             if nbr not in parent:
                 parent[nbr] = node
                 if nbr == goal:
-                    # reconstruct path back to start
+                    # reconstruct
                     path = [goal]
                     while parent[path[-1]] is not None:
                         path.append(parent[path[-1]])
@@ -71,15 +70,14 @@ def shortest_path_unweighted(
 
 
 # ------------------------------------------------------------
-# 4) Disjoint Set Union / Union-Find — fixed (union by rank on roots)
+# 4) Disjoint Set Union / Union-Find (fixed: union on roots, union by rank)
 # ------------------------------------------------------------
 class DSU:
     """
-    Union-Find with path compression & union by rank.
-    Fix: union(x, y) unions the roots, not the raw nodes.
+    Union-find with path compression & union by rank.
     """
 
-    def _init_(self, n: int):
+    def __init__(self, n: int):
         self.parent = list(range(n))
         self.rank = [0] * n
 
@@ -89,10 +87,11 @@ class DSU:
         return self.parent[x]
 
     def union(self, x: int, y: int) -> None:
-        rx, ry = self.find(x), self.find(y)
+        # union by root and by rank
+        rx = self.find(x)
+        ry = self.find(y)
         if rx == ry:
             return
-        # union by rank
         if self.rank[rx] < self.rank[ry]:
             self.parent[rx] = ry
         elif self.rank[rx] > self.rank[ry]:
