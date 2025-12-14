@@ -1,13 +1,9 @@
 pipeline {
     agent any
 
-    stages {
-        stage('Checkout') {
-            steps {
-                git branch: 'main',
-                    url: 'https://github.com/rohitkirloskar25/CodeLens-Project.git'
-            }
-        }
+    environment {
+        GEMINI_API_KEY = credentials('GEMINI_API_KEY')
+    }
 
         stage('Build') {
             steps {
@@ -18,16 +14,17 @@ pipeline {
             }
         }
 
-        stage('Test') {
+        stage('Generate Tests') {
             steps {
-                echo 'Running tests...'
-                // sh 'mvn test'
+                sh '''
+                    python3 generate_tests.py > generated_tests.txt
+                '''
             }
         }
 
-        stage('Deploy') {
+        stage('Ending') {
             steps {
-                echo 'Deploying...'
+                echo 'Done... End of program'
             }
         }
     }
