@@ -1,11 +1,15 @@
 pipeline {
     agent any
 
-    environment {
-        GEMINI_API_KEY = credentials('GEMINI_API_KEY')
-    }
-
     stages {
+        stage('Setup Python Dependencies') {
+            steps {
+                sh '''
+                    python3 -m pip install --user google-generativeai
+                '''
+            }
+        }
+
         stage('Build') {
             steps {
                 echo 'Building project...'
@@ -14,9 +18,11 @@ pipeline {
 
         stage('Generate Tests') {
             steps {
-                sh '''
-                    python3 generate_tests.py > generated_tests.txt
-                '''
+                withCredentials([string(credentialsId: 'GEMINI_API_KEY', variable: 'GEMINI_API_KEY')]) {
+                    sh '''
+                        python3 generate_tests.py > generated_tests.txt
+                    '''
+                }
             }
         }
 
