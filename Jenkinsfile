@@ -5,12 +5,10 @@ pipeline {
         GEMINI_API_KEY = credentials('GEMINI_API_KEY')
     }
 
+    stages {
         stage('Build') {
             steps {
                 echo 'Building project...'
-                // Example:
-                // sh 'mvn clean package'
-                // sh 'npm install'
             }
         }
 
