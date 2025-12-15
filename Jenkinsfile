@@ -30,6 +30,10 @@ pipeline {
                         if [ -f "$file" ]; then
                             echo "\\n--- File: $file ---"
                             cat "$file"
+
+                            # Persist code for later stages
+                            echo "\\n--- File: $file ---" >> uploaded_code.txt
+                            cat "$file" >> uploaded_code.txt
                         fi
                     done
 
@@ -40,7 +44,26 @@ pipeline {
 
         stage('Generate Tests') {
             steps {
-                echo "Generating Tests"
+                echo "Generating Tests from uploaded code..."
+
+                sh '''
+                    if [ ! -f uploaded_code.txt ]; then
+                        echo "❌ No uploaded_code.txt found"
+                        exit 1
+                    fi
+
+                    echo "===== CODE SENT TO TEST GENERATOR ====="
+                    cat uploaded_code.txt
+                    echo "======================================"
+
+                    echo "Running generate_tests.py..."
+
+                    TEST_OUTPUT=$(python3 generate_tests.py uploaded_code.txt)
+
+                    echo "===== GENERATED TEST CASES ====="
+                    echo "$TEST_OUTPUT"
+                    echo "================================"
+                '''
             }
         }
 
