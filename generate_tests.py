@@ -6,150 +6,113 @@ import google.generativeai as genai
 # ============================================================
 # CONFIGURATION
 # ============================================================
-# Reads API configuration from environment variables.
-# This avoids hard-coding secrets and keeps the script CI/CD safe.
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
-# Fail fast if the API key is missing
 if not GEMINI_API_KEY:
     print("ERROR: GEMINI_API_KEY not set", file=sys.stderr)
     sys.exit(1)
 
-# Configure Gemini client
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel(MODEL_NAME)
 
 # ============================================================
-# UTILITY FUNCTIONS
+# UTILITIES
 # ============================================================
-
-def detect_language(filename: str) -> str:
-    """
-    Detects the programming language based on file extension.
-    Only identifies the language, NOT the testing framework,
-    ensuring framework-agnostic behavior.
-    """
-    ext = filename.split(".")[-1].lower()
-    return {
-        "py": "Python",
-        "js": "JavaScript",
-        "ts": "TypeScript",
-        "java": "Java",
-        "cpp": "C++",
-        "c": "C",
-        "go": "Go",
-        "rs": "Rust",
-    }.get(ext, "the same language")
 
 def clean_output(text: str) -> str:
     """
-    Cleans AI output to ensure only raw executable test code is returned.
-    - Extracts code from markdown blocks if present
-    - Removes comments and documentation artifacts
-    - Makes output suitable for CI/CD pipelines
+    Cleans output to ensure strictly raw code is returned.
     """
-
-    # Extract code if wrapped inside markdown fences
+    # 1. Extract code from markdown blocks if present
     code_block = re.search(r"```(?:[a-zA-Z]*)?\n([\s\S]*?)```", text)
     if code_block:
         text = code_block.group(1)
 
-    # Remove block comments
-    text = re.sub(r"/\*[\s\S]*?\*/", "", text)
-    text = re.sub(r"<!--[\s\S]*?-->", "", text)
-
-    # Remove single-line comments safely
-    text = re.sub(r"(^|[^:])//.*$", r"\1", text, flags=re.MULTILINE)
-    text = re.sub(r"(^|[^:])#.*$", r"\1", text, flags=re.MULTILINE)
+    # 2. Aggressively strip comments (Strict Enforcement)
+    text = re.sub(r"/\*[\s\S]*?\*/", "", text)        # Block comments
+    text = re.sub(r"", "", text)       # HTML/XML comments
+    text = re.sub(r"(^|[^:])//.*$", r"\1", text, flags=re.MULTILINE) # Single line (C/JS)
+    text = re.sub(r"(^|[^:])#.*$", r"\1", text, flags=re.MULTILINE)  # Single line (Py/Bash)
 
     return text.strip()
 
-def read_source_files(root="."):
+def reject_non_test_artifacts(text: str) -> None:
     """
-    Recursively scans the project directory for supported source files.
-    Ignores build artifacts, virtual environments, and dependencies.
+    Guardrail to ensure no CI/CD or Docker configs leak into test files.
     """
-    sources = []
-    ignored_dirs = {
-        ".git",
-        "node_modules",
-        "dist",
-        "build",
-        "venv",
-        "__pycache__",
-    }
+    forbidden = [
+        "pipeline {", "agent any", "stages {",
+        "jobs:", "runs-on:", "trigger:",
+        "FROM ", "CMD ", "ENTRYPOINT"
+    ]
 
-    for dirpath, _, files in os.walk(root):
-        if any(ignored in dirpath for ignored in ignored_dirs):
-            continue
-
-        for file in files:
-            if file.endswith((
-                ".py", ".js", ".ts", ".java",
-                ".cpp", ".c", ".go", ".rs"
-            )):
-                path = os.path.join(dirpath, file)
-                with open(path, "r", errors="ignore") as f:
-                    sources.append((file, f.read()))
-
-    return sources
+    if any(x in text for x in forbidden):
+        raise RuntimeError("Invalid artifact detected in test output")
 
 # ============================================================
 # CORE LOGIC
 # ============================================================
 
-def generate_tests(source_code: str, language: str) -> str:
-    """
-    Sends source code to the AI model and generates unit tests.
-    The prompt is intentionally framework-agnostic.
-    """
-
+def generate_tests_from_source(source_code: str) -> str:
     prompt = f"""
-You are a senior QA engineer.
+You are an automated test generation engine.
 
-Generate COMPLETE unit test code for the following source code.
+TASK:
+- Identify the programming language used in the SOURCE CODE
+- Generate COMPLETE UNIT TEST SOURCE CODE in the SAME language
+- Automatically choose the appropriate unit testing framework
 
-Rules:
-- Use the SAME programming language as the source ({language})
-- Automatically infer the most appropriate testing framework or standard library
-- Follow idiomatic testing conventions for that ecosystem
-- Reuse any existing testing patterns detected in the source
-- Tests must be runnable without modification
-- RETURN ONLY RAW TEST CODE
-- NO MARKDOWN
-- NO COMMENTS
-- NO EXPLANATIONS
+STRICT RULES:
+- Output MUST be a unit test source file
+- Output MUST be written in the SAME language as the input
+- Include only necessary imports required by the testing framework
+- RETURN ONLY raw test source code
+- NO markdown
+- NO comments
+- NO explanations
 
 SOURCE CODE:
 {source_code}
 """
-
     response = model.generate_content(prompt)
-    return clean_output(response.text)
+    output = clean_output(response.text)
+    reject_non_test_artifacts(output)
+    return output
 
 # ============================================================
 # ENTRY POINT
 # ============================================================
 
 if __name__ == "__main__":
-    """
-    Entry point for CLI / CI execution.
-    Currently processes the first detected source file.
-    Output is written to stdout for easy pipeline integration.
-    """
+    source_code = ""
 
-    sources = read_source_files()
+    # COMPATIBILITY FIX: Check for filename argument first (for Jenkins)
+    if len(sys.argv) > 1:
+        filepath = sys.argv[1]
+        try:
+            with open(filepath, "r", errors="ignore") as f:
+                source_code = f.read()
+        except FileNotFoundError:
+            print(f"ERROR: File not found: {filepath}", file=sys.stderr)
+            sys.exit(1)
 
-    if not sources:
-        print("ERROR: No source files found", file=sys.stderr)
+    # Fallback: Check for piped input (STDIN)
+    elif not sys.stdin.isatty():
+        source_code = sys.stdin.read()
+
+    else:
+        print("ERROR: No input provided. Pass a file as argument or pipe content via STDIN.", file=sys.stderr)
         sys.exit(1)
 
-    filename, code = sources[0]
-    language = detect_language(filename)
+    if not source_code.strip():
+        print("ERROR: Source code input is empty", file=sys.stderr)
+        sys.exit(1)
 
-    tests = generate_tests(code, language)
-
-    # CI tools (Jenkins/GitHub Actions) capture stdout
-    print(tests)
+    try:
+        tests = generate_tests_from_source(source_code)
+        print(tests)
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
