@@ -16,6 +16,7 @@ pipeline {
                     pip install --upgrade pip
                     pip install google-generativeai
                 '''
+                echo "$GEMINI_API_KEY"
             }
         }
 
