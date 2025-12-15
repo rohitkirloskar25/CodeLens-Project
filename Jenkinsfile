@@ -34,6 +34,8 @@ pipeline {
 
                     echo "============= END OF CODE =================" >> uploaded_code.txt
                 '''
+                // Save the file for use in Docker container
+                stash includes: 'uploaded_code.txt', name: 'uploaded-code'
             }
         }
 
@@ -41,30 +43,28 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.11-slim'
-                    args "-u root -v ${env.WORKSPACE}:${env.WORKSPACE}" // mount correct workspace
                 }
             }
             steps {
-                dir("${env.WORKSPACE}") {
-                    echo "Generating Tests from uploaded code..."
-                    sh '''
-                        python --version
+                // Retrieve stashed code
+                unstash 'uploaded-code'
+                echo "Generating Tests from uploaded code..."
+                sh '''
+                    python --version
+                    echo "===== CODE SENT TO TEST GENERATOR ====="
+                    cat uploaded_code.txt
+                    echo "======================================"
 
-                        echo "===== CODE SENT TO TEST GENERATOR ====="
-                        cat uploaded_code.txt
-                        echo "======================================"
-
-                        # Run test generator if script exists
-                        if [ -f generate_tests.py ]; then
-                            TEST_OUTPUT=$(python generate_tests.py uploaded_code.txt)
-                            echo "===== GENERATED TEST CASES ====="
-                            echo "$TEST_OUTPUT"
-                            echo "================================"
-                        else
-                            echo "generate_tests.py not found!"
-                        fi
-                    '''
-                }
+                    # Run test generator if script exists
+                    if [ -f generate_tests.py ]; then
+                        TEST_OUTPUT=$(python generate_tests.py uploaded_code.txt)
+                        echo "===== GENERATED TEST CASES ====="
+                        echo "$TEST_OUTPUT"
+                        echo "================================"
+                    else
+                        echo "generate_tests.py not found!"
+                    fi
+                '''
             }
         }
 
