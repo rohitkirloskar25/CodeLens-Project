@@ -132,13 +132,17 @@ pipeline {
                         BASENAME=$(basename "$SOURCE_FILE")
                         NAME="${BASENAME%.*}"
                         EXT="${BASENAME##*.}"
-                        TEST_FILE="src/test/${NAME}Test.${EXT}"
+                        TEST_FILE="src/test/${NAME}Tests.${EXT}"
 
                         if [ -f "$TEST_FILE" ]; then
                             echo "Adding $TEST_FILE"
                             git add "$TEST_FILE"
+                        else
+                            echo "Test file not found: $TEST_FILE"
                         fi
                     done < changed_sources.txt
+
+                    git status
 
                     git commit -m "Auto-generate unit tests for src/main changes" \
                         || echo "No changes to commit"
