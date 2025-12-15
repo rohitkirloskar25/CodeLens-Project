@@ -43,12 +43,14 @@ pipeline {
 
         stage('Generate Tests') {
             steps {
+                echo "Generating Tests"
                 // intentionally left empty
             }
         }
 
         stage('Run Tests') {
             steps {
+                echo "Running Tests"
                 // intentionally left empty
             }
         }
