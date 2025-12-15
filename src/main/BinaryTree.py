@@ -21,4 +21,3 @@ def inorder(node):
         inorder(node.right)
 
 inorder(root)
-print("Hi")
