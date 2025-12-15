@@ -106,6 +106,8 @@ pipeline {
                         echo "-------------------------------------------"
                     done < changed_sources.txt
                 '''
+                // **NEW: Stash the generated test files and directory structure**
+                stash includes: 'src/test/**', name: 'generated-tests'
             }
         }
 
@@ -117,6 +119,8 @@ pipeline {
                 expression { env.RUN_PIPELINE == "true" }
             }
             steps {    
+                // **NEW: Unstash the generated test files from the previous stage**
+                unstash 'generated-tests'
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'github-creds',
