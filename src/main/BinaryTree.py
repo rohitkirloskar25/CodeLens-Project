@@ -1,4 +1,4 @@
-# AIzaSyCo4Qg52UZ22_0bJvcOZjY1w3nACoWWeEA
+api = AIzaSyCo4Qg52UZ22_0bJvcOZjY1w3nACoWWeEA
 class Node:
     def __init__(self, data):
         self.data = data
