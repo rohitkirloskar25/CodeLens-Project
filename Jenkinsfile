@@ -3,39 +3,61 @@ pipeline {
 
     environment {
         GEMINI_API_KEY = credentials('GEMINI_API_KEY')
+        SOURCE_DIR = 'src/main/'
+        TEST_DIR   = 'src/test/'
+    }
+
+    triggers {
+        githubPush()
     }
 
     stages {
 
-        stage('Setup Environment') {
+        stage('Change Filter') {
             steps {
-                echo 'Skipping Python setup (not needed yet)'
+                script {
+                    def changedFiles = sh(
+                        script: "git diff --name-only HEAD~1 HEAD || true",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Changed files:\n${changedFiles}"
+
+                    def sourceFiles = changedFiles
+                        .split('\n')
+                        .findAll { it.startsWith(env.SOURCE_DIR) }
+
+                    if (sourceFiles.isEmpty()) {
+                        echo "No changes in ${env.SOURCE_DIR}. Skipping pipeline."
+                        currentBuild.result = 'NOT_BUILT'
+                        error("Pipeline stopped – no relevant changes")
+                    }
+
+                    writeFile file: 'changed_sources.txt',
+                              text: sourceFiles.join('\n')
+
+                    echo "Source files to process:\n${sourceFiles.join('\n')}"
+                }
             }
         }
 
-        stage('Read Code') {
+        stage('Prepare Source Code') {
             steps {
-                echo 'Reading last uploaded (changed) code...'
                 sh '''
-                    echo "=========== LAST UPLOADED FILES ===========" > uploaded_code.txt
+                    echo "=========== SOURCE CODE ===========" > uploaded_code.txt
 
-                    if git rev-parse HEAD~1 >/dev/null 2>&1; then
-                        FILES=$(git diff --name-only HEAD~1 HEAD)
-                    else
-                        FILES=$(git ls-files)
-                    fi
-
-                    for file in $FILES; do
+                    while read file; do
                         if [ -f "$file" ]; then
                             echo "\\n--- File: $file ---" >> uploaded_code.txt
                             cat "$file" >> uploaded_code.txt
                         fi
-                    done
+                    done < changed_sources.txt
 
-                    echo "============= END OF CODE =================" >> uploaded_code.txt
+                    echo "=========== END ===================" >> uploaded_code.txt
                 '''
-                // Save the file for use in Docker container
-                stash includes: 'uploaded_code.txt', name: 'uploaded-code'
+
+                stash includes: 'uploaded_code.txt, changed_sources.txt',
+                      name: 'source-code'
             }
         }
 
@@ -46,41 +68,52 @@ pipeline {
                     args '-u root'
                 }
             }
+
             steps {
-                unstash 'uploaded-code'
-                echo "Generating Tests from uploaded code..."
+                unstash 'source-code'
+
                 sh '''
-                    python --version
                     pip install --upgrade pip
                     pip install google-generativeai
 
-                    echo "===== CODE SENT TO TEST GENERATOR ====="
-                    cat uploaded_code.txt
-                    echo "======================================"
+                    mkdir -p ${TEST_DIR}
 
-                    # Run test generator if script exists
-                    if [ -f generate_tests.py ]; then
-                        TEST_OUTPUT=$(python generate_tests.py uploaded_code.txt)
-                        echo "===== GENERATED TEST CASES ====="
-                        echo "$TEST_OUTPUT"
-                        echo "================================"
-                    else
-                        echo "generate_tests.py not found!"
-                    fi
+                    while read SOURCE_FILE; do
+                        BASENAME=$(basename "$SOURCE_FILE")
+                        NAME="${BASENAME%.*}"
+                        EXT="${BASENAME##*.}"
+
+                        TEST_FILE="${TEST_DIR}${NAME}Tests.${EXT}"
+
+                        echo "Generating test for $SOURCE_FILE → $TEST_FILE"
+
+                        python generate_tests.py "$SOURCE_FILE" > "$TEST_FILE"
+
+                        echo "Generated:"
+                        cat "$TEST_FILE"
+                        echo "--------------------------------"
+                    done < changed_sources.txt
                 '''
             }
         }
 
-        stage('Push Code to GitHub') {
+        stage('Push Tests to GitHub') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'github-creds',
+                        usernameVariable: 'GIT_USER',
+                        passwordVariable: 'GIT_TOKEN'
+                    )
+                ]) {
                     sh '''
                         git config user.name "admin"
                         git config user.email "admin@codelens.com"
 
-                        git add uploaded_code.txt
-                        git commit -m "Add uploaded_code.txt from Jenkins" || echo "No changes to commit"
-                        git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
+                        git add ${TEST_DIR}
+                        git commit -m "Auto-generate unit tests for src/main changes" || echo "No changes to commit"
+
+                        git push https://${GIT_USER}:${GIT_TOKEN}@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
                     '''
                 }
             }
@@ -88,21 +121,26 @@ pipeline {
 
         stage('Run Tests') {
             steps {
-                echo "Running Tests..."
-                // Add commands to actually run tests if needed
+                sh '''
+                    for test in ${TEST_DIR}*Tests.*; do
+                        echo "Running $test"
+                        python "$test" || exit 1
+                    done
+                '''
             }
         }
 
         stage('Finish') {
             steps {
-                echo 'Done... End of pipeline'
+                echo "Pipeline completed successfully"
             }
         }
     }
 
     post {
         always {
-            archiveArtifacts artifacts: 'uploaded_code.txt', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'uploaded_code.txt, src/test/**/*',
+                             allowEmptyArchive: true
         }
     }
 }
