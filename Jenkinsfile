@@ -105,8 +105,8 @@ pipeline {
                         echo "-------------------------------------------"
                     done < changed_sources.txt
                 '''
-                // **NEW: Stash the generated test files and directory structure**
-                stash includes: 'src/test/**', name: 'generated-tests'
+                    // **NEW: Stash the generated test files and directory structure**
+                    stash includes: 'src/test/**', name: 'generated-tests'
             }
         }
 
