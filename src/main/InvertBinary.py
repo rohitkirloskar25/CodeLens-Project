@@ -45,4 +45,4 @@ print("--- Inverted Tree (Inorder Traversal) ---")
 inorder(inverted_root)
 print("\n")
 
-print("Inversion complete.")
+print("Inversion comples")
