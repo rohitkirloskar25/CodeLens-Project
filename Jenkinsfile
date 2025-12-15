@@ -157,13 +157,70 @@ pipeline {
         }
 
         /* -------------------------------------------------------
-            RUN TESTS (LEFT EMPTY AS REQUESTED)
+            RUN TESTS 
         ------------------------------------------------------- */
         stage('Run Tests') {
-            steps {
-                echo "Run Tests stage intentionally left empty"
+            when {
+                expression { env.RUN_PIPELINE == "true" }
             }
-        }
+            agent {
+                docker {
+                    // Use the Python container to run Python unit tests
+                    image 'python:3.11-slim'
+                    args '-u root'
+                }
+            }
+            steps {
+                // Get the generated tests from the previous stage's stash
+                unstash 'generated-tests' 
+                // Get the changed_sources.txt file for iterating over tests
+                unstash 'source-code'
+
+                sh '''
+                    echo "====================================="
+                    echo "========== RUNNING TESTS =========="
+                    echo "====================================="
+                    
+                    # Ensure pip is installed for test execution
+                    pip install --upgrade pip
+
+                    # We need the production code to be importable. 
+                    # Set PYTHONPATH to include the parent directory of src/main/
+                    export PYTHONPATH=$PYTHONPATH:$(pwd)
+
+                    # We run the tests by iterating over the changed sources list.
+                    # This targets the generated test files in src/test.
+                    TEST_EXIT_CODE=0
+                    while read SOURCE_FILE; do
+                        BASENAME=$(basename "$SOURCE_FILE")
+                        NAME="${BASENAME%.*}"
+                        EXT="${BASENAME##*.}"
+                        TEST_FILE="src/test/${NAME}Tests.${EXT}"
+                        
+                        if [ -f "$TEST_FILE" ]; then
+                            echo ""
+                            echo "--- Executing $TEST_FILE ---"
+                            # Run the test file as a module (e.g., src.test.BinaryTreeTests)
+                            # The test file itself needs to be able to import the main code.
+                            python "$TEST_FILE" || TEST_EXIT_CODE=1
+                        else
+                            echo "Warning: Test file not found for $SOURCE_FILE."
+                        fi
+                    done < changed_sources.txt
+
+                    if [ $TEST_EXIT_CODE -ne 0 ]; then
+                        echo "====================================="
+                        echo "!!! UNIT TESTS FAILED !!!"
+                        echo "====================================="
+                        exit 1
+                    else
+                        echo "====================================="
+                        echo "✅ ALL UNIT TESTS PASSED ✅"
+                        echo "====================================="
+                    fi
+                '''
+            }
+        }
 
         /* -------------------------------------------------------
             FINISH (LEFT EMPTY AS REQUESTED)
