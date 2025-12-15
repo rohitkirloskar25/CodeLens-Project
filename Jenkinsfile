@@ -16,7 +16,6 @@ pipeline {
         stage('Read Code') {
             steps {
                 echo 'Reading last uploaded (changed) code...'
-
                 sh '''
                     echo "=========== LAST UPLOADED FILES ===========" > uploaded_code.txt
 
@@ -42,19 +41,20 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.11-slim'
-                    args "-u root -v ${env.WORKSPACE}:${env.WORKSPACE}" // Mount workspace
+                    args "-u root -v ${env.WORKSPACE}:${env.WORKSPACE}" // mount correct workspace
                 }
             }
             steps {
-                dir("${env.WORKSPACE}") {  // Ensure container starts in workspace
+                dir("${env.WORKSPACE}") {
                     echo "Generating Tests from uploaded code..."
                     sh '''
                         python --version
+
                         echo "===== CODE SENT TO TEST GENERATOR ====="
                         cat uploaded_code.txt
                         echo "======================================"
 
-                        # Run test generator if it exists
+                        # Run test generator if script exists
                         if [ -f generate_tests.py ]; then
                             TEST_OUTPUT=$(python generate_tests.py uploaded_code.txt)
                             echo "===== GENERATED TEST CASES ====="
@@ -71,16 +71,14 @@ pipeline {
         stage('Push Code to GitHub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
-                    dir("${env.WORKSPACE}") {
-                        sh '''
-                            git config user.name "admin"
-                            git config user.email "admin@codelens.com"
+                    sh '''
+                        git config user.name "admin"
+                        git config user.email "admin@codelens.com"
 
-                            git add uploaded_code.txt
-                            git commit -m "Add uploaded_code.txt from Jenkins" || echo "No changes to commit"
-                            git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
-                        '''
-                    }
+                        git add uploaded_code.txt
+                        git commit -m "Add uploaded_code.txt from Jenkins" || echo "No changes to commit"
+                        git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
+                    '''
                 }
             }
         }
@@ -88,7 +86,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 echo "Running Tests..."
-                // Add your test running commands here
+                // Add commands to actually run tests if needed
             }
         }
 
