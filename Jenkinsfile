@@ -43,22 +43,23 @@ pipeline {
         }
 
         stage('Generate Tests') {
+            agent {
+                docker {
+                    image 'python:3.11-slim'
+                    args '-u root'
+                }
+            }
             steps {
                 echo "Generating Tests from uploaded code..."
 
                 sh '''
-                    if [ ! -f uploaded_code.txt ]; then
-                        echo "❌ No uploaded_code.txt found"
-                        exit 1
-                    fi
+                    python --version
 
                     echo "===== CODE SENT TO TEST GENERATOR ====="
                     cat uploaded_code.txt
                     echo "======================================"
 
-                    echo "Running generate_tests.py..."
-
-                    TEST_OUTPUT=$(python3 generate_tests.py uploaded_code.txt)
+                    TEST_OUTPUT=$(python generate_tests.py uploaded_code.txt)
 
                     echo "===== GENERATED TEST CASES ====="
                     echo "$TEST_OUTPUT"
