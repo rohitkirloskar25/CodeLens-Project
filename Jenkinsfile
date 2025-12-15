@@ -8,7 +8,7 @@ pipeline {
     stages {
 
         /* -------------------------------------------------------
-           FILTER: Trigger only if src/main changed
+            FILTER: Trigger only if src/main changed
         ------------------------------------------------------- */
         stage('Change Filter') {
             steps {
@@ -33,7 +33,7 @@ pipeline {
         }
 
         /* -------------------------------------------------------
-           PREPARE SOURCE CODE  (MODIFIED)
+            PREPARE SOURCE CODE (MODIFIED)
         ------------------------------------------------------- */
         stage('Prepare Source Code') {
             when {
@@ -68,7 +68,7 @@ pipeline {
         }
 
         /* -------------------------------------------------------
-           GENERATE TESTS  (MODIFIED)
+            GENERATE TESTS (MODIFIED)
         ------------------------------------------------------- */
         stage('Generate Tests') {
             when {
@@ -105,20 +105,20 @@ pipeline {
                         echo "-------------------------------------------"
                     done < changed_sources.txt
                 '''
-                    // **NEW: Stash the generated test files and directory structure**
-                    stash includes: 'src/test/**', name: 'generated-tests'
+                // Cleaned up the indentation here:
+                stash includes: 'src/test/**', name: 'generated-tests'
             }
         }
 
         /* -------------------------------------------------------
-           PUSH GENERATED TESTS
+            PUSH GENERATED TESTS
         ------------------------------------------------------- */
         stage('Push Tests to GitHub') {
             when {
                 expression { env.RUN_PIPELINE == "true" }
             }
-            steps {    
-                // **NEW: Unstash the generated test files from the previous stage**
+            steps {
+                // Cleaned up the indentation here:
                 unstash 'generated-tests'
                 withCredentials([
                     usernamePassword(
@@ -127,37 +127,37 @@ pipeline {
                         passwordVariable: 'GIT_TOKEN'
                     )
                 ]) {
-                sh '''
-                    git config user.name "admin"
-                    git config user.email "admin@codelens.com"
+                    sh '''
+                        git config user.name "admin"
+                        git config user.email "admin@codelens.com"
 
-                    while read SOURCE_FILE; do
-                        BASENAME=$(basename "$SOURCE_FILE")
-                        NAME="${BASENAME%.*}"
-                        EXT="${BASENAME##*.}"
-                        TEST_FILE="src/test/${NAME}Tests.${EXT}"
+                        while read SOURCE_FILE; do
+                            BASENAME=$(basename "$SOURCE_FILE")
+                            NAME="${BASENAME%.*}"
+                            EXT="${BASENAME##*.}"
+                            TEST_FILE="src/test/${NAME}Tests.${EXT}"
 
-                        if [ -f "$TEST_FILE" ]; then
-                            echo "Adding $TEST_FILE"
-                            git add "$TEST_FILE"
-                        else
-                            echo "Test file not found: $TEST_FILE"
-                        fi
-                    done < changed_sources.txt
+                            if [ -f "$TEST_FILE" ]; then
+                                echo "Adding $TEST_FILE"
+                                git add "$TEST_FILE"
+                            else
+                                echo "Test file not found: $TEST_FILE"
+                            fi
+                        done < changed_sources.txt
 
-                    git status
+                        git status
 
-                    git commit -m "Auto-generate unit tests for src/main changes" \
-                        || echo "No changes to commit"
+                        git commit -m "Auto-generate unit tests for src/main changes" \
+                            || echo "No changes to commit"
 
-                    git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
-                '''
+                        git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
+                    '''
                 }
             }
         }
 
         /* -------------------------------------------------------
-           RUN TESTS (LEFT EMPTY AS REQUESTED)
+            RUN TESTS (LEFT EMPTY AS REQUESTED)
         ------------------------------------------------------- */
         stage('Run Tests') {
             steps {
@@ -166,7 +166,7 @@ pipeline {
         }
 
         /* -------------------------------------------------------
-           FINISH (LEFT EMPTY AS REQUESTED)
+            FINISH (LEFT EMPTY AS REQUESTED)
         ------------------------------------------------------- */
         stage('Finish') {
             steps {
