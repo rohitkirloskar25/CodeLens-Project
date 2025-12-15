@@ -11,31 +11,51 @@ pipeline {
 
     stages {
 
+        /* -------------------------------------------------------
+           CHECKOUT (MANDATORY)
+        ------------------------------------------------------- */
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        /* -------------------------------------------------------
+           FILTER: Continue ONLY if src/main changed
+        ------------------------------------------------------- */
         stage('Change Filter') {
             steps {
                 script {
                     sh '''
-                        git diff --name-only HEAD~1 HEAD > changed_files.txt || true
+                        echo "Previous commit: $GIT_PREVIOUS_SUCCESSFUL_COMMIT"
+                        echo "Current commit:  $GIT_COMMIT"
+
+                        if [ -z "$GIT_PREVIOUS_SUCCESSFUL_COMMIT" ]; then
+                            git diff --name-only HEAD > changed_files.txt
+                        else
+                            git diff --name-only $GIT_PREVIOUS_SUCCESSFUL_COMMIT $GIT_COMMIT > changed_files.txt
+                        fi
+
                         grep '^src/main/' changed_files.txt > changed_sources.txt || true
                     '''
 
                     def changes = readFile('changed_sources.txt').trim()
                     if (!changes) {
-                        echo "No changes in src/main/. Exiting pipeline early."
+                        echo "❌ No changes in src/main/. Exiting pipeline."
                         currentBuild.result = 'NOT_BUILT'
                         return
                     }
 
-                    echo "Source files changed:"
+                    echo "✅ src/main changes detected:"
                     echo changes
                 }
             }
         }
 
+        /* -------------------------------------------------------
+           PREPARE SOURCE CODE
+        ------------------------------------------------------- */
         stage('Prepare Source Code') {
-            when {
-                expression { fileExists('changed_sources.txt') }
-            }
             steps {
                 sh '''
                     echo "=========== SOURCE CODE ===========" > uploaded_code.txt
@@ -43,15 +63,16 @@ pipeline {
                         [ -f "$file" ] && cat "$file" >> uploaded_code.txt
                     done < changed_sources.txt
                 '''
+
                 stash includes: 'uploaded_code.txt, changed_sources.txt',
                       name: 'source-code'
             }
         }
 
+        /* -------------------------------------------------------
+           GENERATE TESTS
+        ------------------------------------------------------- */
         stage('Generate Tests') {
-            when {
-                expression { fileExists('changed_sources.txt') }
-            }
             agent {
                 docker {
                     image 'python:3.11-slim'
@@ -60,6 +81,7 @@ pipeline {
             }
             steps {
                 unstash 'source-code'
+
                 sh '''
                     pip install google-generativeai
                     mkdir -p src/test
@@ -68,17 +90,19 @@ pipeline {
                         BASE=$(basename "$SOURCE_FILE")
                         NAME="${BASE%.*}"
                         EXT="${BASE##*.}"
-                        python generate_tests.py "$SOURCE_FILE" \
-                          > "src/test/${NAME}Tests.${EXT}"
+                        TEST_FILE="src/test/${NAME}Tests.${EXT}"
+
+                        echo "Generating test: $TEST_FILE"
+                        python generate_tests.py "$SOURCE_FILE" > "$TEST_FILE"
                     done < changed_sources.txt
                 '''
             }
         }
 
-        stage('Push Tests') {
-            when {
-                expression { fileExists('src/test') }
-            }
+        /* -------------------------------------------------------
+           PUSH GENERATED TESTS
+        ------------------------------------------------------- */
+        stage('Push Tests to GitHub') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'github-creds',
@@ -86,12 +110,41 @@ pipeline {
                     passwordVariable: 'GIT_TOKEN'
                 )]) {
                     sh '''
+                        git config user.name "admin"
+                        git config user.email "admin@codelens.com"
+
                         git add src/test/
-                        git commit -m "Auto-generate tests" || true
+                        git commit -m "Auto-generate tests for src/main changes" || true
                         git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
                     '''
                 }
             }
+        }
+
+        /* -------------------------------------------------------
+           RUN TESTS
+        ------------------------------------------------------- */
+        stage('Run Tests') {
+            agent {
+                docker {
+                    image 'python:3.11-slim'
+                }
+            }
+            steps {
+                sh '''
+                    for test in src/test/*Tests.*; do
+                        echo "Running $test"
+                        python "$test" || exit 1
+                    done
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: 'uploaded_code.txt, src/test/*',
+                             allowEmptyArchive: true
         }
     }
 }
