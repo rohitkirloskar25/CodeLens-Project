@@ -3,20 +3,13 @@ pipeline {
 
     environment {
         GEMINI_API_KEY = credentials('GEMINI_API_KEY')
-        VENV_DIR = '.venv'
     }
 
     stages {
 
-        stage('Setup Python Environment') {
+        stage('Setup Environment') {
             steps {
-                sh '''
-                    python3 -m venv ${VENV_DIR}
-                    . ${VENV_DIR}/bin/activate
-                    pip install --upgrade pip
-                    pip install google-generativeai
-                '''
-                echo "$GEMINI_API_KEY"
+                echo 'Skipping Python setup (not needed yet)'
             }
         }
 
@@ -27,7 +20,11 @@ pipeline {
                 sh '''
                     echo "=========== LAST UPLOADED FILES ==========="
 
-                    FILES=$(git diff --name-only HEAD~1 HEAD)
+                    if git rev-parse HEAD~1 >/dev/null 2>&1; then
+                        FILES=$(git diff --name-only HEAD~1 HEAD)
+                    else
+                        FILES=$(git ls-files)
+                    fi
 
                     for file in $FILES; do
                         if [ -f "$file" ]; then
@@ -44,14 +41,12 @@ pipeline {
         stage('Generate Tests') {
             steps {
                 echo "Generating Tests"
-                // intentionally left empty
             }
         }
 
         stage('Run Tests') {
             steps {
                 echo "Running Tests"
-                // intentionally left empty
             }
         }
 
