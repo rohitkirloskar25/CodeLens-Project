@@ -134,7 +134,9 @@ pipeline {
            RUN TESTS (INTENTIONALLY EMPTY)
         ------------------------------------------------------- */
         stage('Run Tests') {
-            echo "Starting to run Tests"
+            steps {
+                echo "Starting to run Tests"
+            }
         }
 
         /* -------------------------------------------------------
