@@ -1,6 +1,6 @@
 # Import the Node class, the inorder traversal function, 
 # and the tree creation function from the local file
-from .BinaryTree import Node, inorder, create_example_tree
+from BinaryTree import Node, inorder, create_example_tree
 
 def invert_tree(root: Node) -> Node:
     """
