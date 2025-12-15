@@ -19,16 +19,40 @@ pipeline {
             }
         }
 
-        stage('Generate Tests') {
+        stage('Read Code') {
             steps {
+                echo 'Reading last uploaded (changed) code...'
+
                 sh '''
-                    . ${VENV_DIR}/bin/activate
-                    python generate_tests.py > generated_tests.txt
+                    echo "=========== LAST UPLOADED FILES ==========="
+
+                    FILES=$(git diff --name-only HEAD~1 HEAD)
+
+                    for file in $FILES; do
+                        if [ -f "$file" ]; then
+                            echo "\\n--- File: $file ---"
+                            cat "$file"
+                        fi
+                    done
+
+                    echo "============= END OF CODE ================="
                 '''
             }
         }
 
-        stage('Ending') {
+        stage('Generate Tests') {
+            steps {
+                // intentionally left empty
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                // intentionally left empty
+            }
+        }
+
+        stage('Finish') {
             steps {
                 echo 'Done... End of program'
             }
