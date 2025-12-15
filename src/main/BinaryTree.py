@@ -24,3 +24,4 @@ def create_example_tree():
     root.left.right = Node(5)
     
     return root
+    print("hello")
