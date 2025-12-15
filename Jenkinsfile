@@ -7,9 +7,6 @@ pipeline {
 
     stages {
 
-        /* -------------------------------------------------------
-            FILTER: Trigger only if src/main changed
-        ------------------------------------------------------- */
         stage('Change Filter') {
             steps {
                 script {
@@ -32,9 +29,6 @@ pipeline {
             }
         }
 
-        /* -------------------------------------------------------
-            PREPARE SOURCE CODE (MODIFIED)
-        ------------------------------------------------------- */
         stage('Prepare Source Code') {
             when {
                 expression { env.RUN_PIPELINE == "true" }
@@ -67,9 +61,6 @@ pipeline {
             }
         }
 
-        /* -------------------------------------------------------
-            GENERATE TESTS (MODIFIED)
-        ------------------------------------------------------- */
         stage('Generate Tests') {
             when {
                 expression { env.RUN_PIPELINE == "true" }
@@ -105,20 +96,16 @@ pipeline {
                         echo "-------------------------------------------"
                     done < changed_sources.txt
                 '''
-                // Cleaned up the indentation here:
+
                 stash includes: 'src/test/**', name: 'generated-tests'
             }
         }
 
-        /* -------------------------------------------------------
-            PUSH GENERATED TESTS
-        ------------------------------------------------------- */
         stage('Push Tests to GitHub') {
             when {
                 expression { env.RUN_PIPELINE == "true" }
             }
             steps {
-                // Cleaned up the indentation here:
                 unstash 'generated-tests'
                 withCredentials([
                     usernamePassword(
@@ -156,52 +143,39 @@ pipeline {
             }
         }
 
-        /* -------------------------------------------------------
-            RUN TESTS 
-        ------------------------------------------------------- */
         stage('Run Tests') {
             when {
                 expression { env.RUN_PIPELINE == "true" }
             }
             agent {
                 docker {
-                    // Use the Python container to run Python unit tests
                     image 'python:3.11-slim'
                     args '-u root'
                 }
             }
             steps {
-                // Get the generated tests from the previous stage's stash
-                unstash 'generated-tests' 
-                // Get the changed_sources.txt file for iterating over tests
+                unstash 'generated-tests'
                 unstash 'source-code'
 
                 sh '''
                     echo "====================================="
                     echo "========== RUNNING TESTS =========="
                     echo "====================================="
-                    
-                    # Ensure pip is installed for test execution
+
                     pip install --upgrade pip
 
-                    # We need the production code to be importable. 
-                    # Set PYTHONPATH to include the parent directory of src/main/
                     export PYTHONPATH=$PYTHONPATH:$(pwd)
 
-                    # We run the tests by iterating over the changed sources list.
-                    # This targets the generated test files in src/test.
                     TEST_EXIT_CODE=0
                     while read SOURCE_FILE; do
                         BASENAME=$(basename "$SOURCE_FILE")
                         NAME="${BASENAME%.*}"
                         EXT="${BASENAME##*.}"
                         TEST_FILE="src/test/${NAME}Tests.${EXT}"
-                        
+
                         if [ -f "$TEST_FILE" ]; then
                             echo ""
                             echo "--- Executing $TEST_FILE ---"
-                            # Run the test file as a module (e.g., src.test.BinaryTreeTests)
-                            # The test file itself needs to be able to import the main code.
                             python "$TEST_FILE" || TEST_EXIT_CODE=1
                         else
                             echo "Warning: Test file not found for $SOURCE_FILE."
@@ -219,12 +193,9 @@ pipeline {
                         echo "====================================="
                     fi
                 '''
-            }
-        }
+            }
+        }
 
-        /* -------------------------------------------------------
-            FINISH (LEFT EMPTY AS REQUESTED)
-        ------------------------------------------------------- */
         stage('Finish') {
             steps {
                 echo "Finish stage intentionally left empty"
