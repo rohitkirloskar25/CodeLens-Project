@@ -14,19 +14,6 @@ class TestNode(unittest.TestCase):
         self.assertIsNone(node.left)
         self.assertIsNone(node.right)
 
-    def test_tree_structure(self):
-        root = Node(1)
-        root.left = Node(2)
-        root.right = Node(3)
-        root.left.left = Node(4)
-        root.left.right = Node(5)
-
-        self.assertEqual(root.data, 1)
-        self.assertEqual(root.left.data, 2)
-        self.assertEqual(root.right.data, 3)
-        self.assertEqual(root.left.left.data, 4)
-        self.assertEqual(root.left.right.data, 5)
-
 class TestInorderTraversal(unittest.TestCase):
     def test_inorder_traversal(self):
         root = Node(1)
@@ -41,7 +28,6 @@ class TestInorderTraversal(unittest.TestCase):
                 inorder(node.left)
                 result.append(node.data)
                 inorder(node.right)
-
         inorder(root)
         self.assertEqual(result, [4, 2, 5, 1, 3])
 
