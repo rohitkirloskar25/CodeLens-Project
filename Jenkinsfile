@@ -164,7 +164,7 @@ pipeline {
 
                     pip install --upgrade pip
 
-                    export PYTHONPATH=$PYTHONPATH:/var/jenkins_home/workspace/autobuild@2/src/test
+                    export PYTHONPATH=$PYTHONPATH:${pwd}
 
                     TEST_EXIT_CODE=0
                     while read SOURCE_FILE; do
