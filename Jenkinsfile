@@ -3,44 +3,37 @@ pipeline {
 
     environment {
         GEMINI_API_KEY = credentials('GEMINI_API_KEY')
-        SOURCE_DIR = 'src/main/'
-        TEST_DIR   = 'src/test/'
-    }
-
-    triggers {
-        githubPush()
     }
 
     stages {
 
+        /* -------------------------------------------------------
+           FILTER: Trigger only if src/main changed
+        ------------------------------------------------------- */
         stage('Change Filter') {
             steps {
                 script {
-                    def changedFiles = sh(
-                        script: "git diff --name-only HEAD~1 HEAD || true",
-                        returnStdout: true
-                    ).trim()
+                    sh '''
+                        git diff --name-only HEAD~1 HEAD > changed_files.txt || true
+                        grep '^src/main/' changed_files.txt > changed_sources.txt || true
+                    '''
 
-                    echo "Changed files:\n${changedFiles}"
-
-                    def sourceFiles = changedFiles
-                        .split('\n')
-                        .findAll { it.startsWith(env.SOURCE_DIR) }
-
-                    if (sourceFiles.isEmpty()) {
-                        echo "No changes in ${env.SOURCE_DIR}. Skipping pipeline."
+                    def changes = readFile('changed_sources.txt').trim()
+                    if (!changes) {
+                        echo "No changes in src/main/. Skipping pipeline."
                         currentBuild.result = 'NOT_BUILT'
-                        error("Pipeline stopped – no relevant changes")
+                        error("No relevant changes")
                     }
 
-                    writeFile file: 'changed_sources.txt',
-                              text: sourceFiles.join('\n')
-
-                    echo "Source files to process:\n${sourceFiles.join('\n')}"
+                    echo "Source files changed:"
+                    echo changes
                 }
             }
         }
 
+        /* -------------------------------------------------------
+           PREPARE SOURCE CODE
+        ------------------------------------------------------- */
         stage('Prepare Source Code') {
             steps {
                 sh '''
@@ -61,6 +54,9 @@ pipeline {
             }
         }
 
+        /* -------------------------------------------------------
+           GENERATE TESTS
+        ------------------------------------------------------- */
         stage('Generate Tests') {
             agent {
                 docker {
@@ -68,7 +64,6 @@ pipeline {
                     args '-u root'
                 }
             }
-
             steps {
                 unstash 'source-code'
 
@@ -76,27 +71,25 @@ pipeline {
                     pip install --upgrade pip
                     pip install google-generativeai
 
-                    mkdir -p ${TEST_DIR}
+                    mkdir -p src/test
 
                     while read SOURCE_FILE; do
                         BASENAME=$(basename "$SOURCE_FILE")
                         NAME="${BASENAME%.*}"
                         EXT="${BASENAME##*.}"
+                        TEST_FILE="src/test/${NAME}Tests.${EXT}"
 
-                        TEST_FILE="${TEST_DIR}${NAME}Tests.${EXT}"
-
-                        echo "Generating test for $SOURCE_FILE → $TEST_FILE"
+                        echo "Generating test for $SOURCE_FILE -> $TEST_FILE"
 
                         python generate_tests.py "$SOURCE_FILE" > "$TEST_FILE"
-
-                        echo "Generated:"
-                        cat "$TEST_FILE"
-                        echo "--------------------------------"
                     done < changed_sources.txt
                 '''
             }
         }
 
+        /* -------------------------------------------------------
+           PUSH GENERATED TESTS
+        ------------------------------------------------------- */
         stage('Push Tests to GitHub') {
             steps {
                 withCredentials([
@@ -110,19 +103,29 @@ pipeline {
                         git config user.name "admin"
                         git config user.email "admin@codelens.com"
 
-                        git add ${TEST_DIR}
-                        git commit -m "Auto-generate unit tests for src/main changes" || echo "No changes to commit"
+                        git add src/test/
+                        git commit -m "Auto-generate unit tests for src/main changes" \
+                            || echo "No changes to commit"
 
-                        git push https://${GIT_USER}:${GIT_TOKEN}@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
+                        git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
                     '''
                 }
             }
         }
 
+        /* -------------------------------------------------------
+           RUN TESTS
+        ------------------------------------------------------- */
         stage('Run Tests') {
+            agent {
+                docker {
+                    image 'python:3.11-slim'
+                }
+            }
             steps {
                 sh '''
-                    for test in ${TEST_DIR}*Tests.*; do
+                    python --version
+                    for test in src/test/*Tests.*; do
                         echo "Running $test"
                         python "$test" || exit 1
                     done
@@ -130,6 +133,9 @@ pipeline {
             }
         }
 
+        /* -------------------------------------------------------
+           FINISH
+        ------------------------------------------------------- */
         stage('Finish') {
             steps {
                 echo "Pipeline completed successfully"
@@ -139,7 +145,7 @@ pipeline {
 
     post {
         always {
-            archiveArtifacts artifacts: 'uploaded_code.txt, src/test/**/*',
+            archiveArtifacts artifacts: 'uploaded_code.txt, src/test/*',
                              allowEmptyArchive: true
         }
     }
