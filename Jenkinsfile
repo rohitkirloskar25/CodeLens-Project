@@ -52,22 +52,35 @@ pipeline {
         stage('Prepare Source Code') {
             when {
                 expression { env.RUN_PIPELINE == "true" }
-            }
+            }        
             steps {
                 sh '''
+                    echo "=========== CHANGED SOURCE FILES ===========" 
+                    cat changed_sources.txt
+                    echo "============================================"
+
                     echo "=========== SOURCE CODE ===========" > uploaded_code.txt
 
                     while read file; do
-                        [ -f "$file" ] && cat "$file" >> uploaded_code.txt
+                    if [ -f "$file" ]; then
+                        echo ""
+                        echo "----- FILE: $file -----"
+                        cat "$file"
+                        echo "------------------------"
+
+                        echo "\\n--- File: $file ---" >> uploaded_code.txt
+                        cat "$file" >> uploaded_code.txt
+                    fi
                     done < changed_sources.txt
 
                     echo "=========== END ===================" >> uploaded_code.txt
                 '''
 
-                stash includes: 'uploaded_code.txt, changed_sources.txt',
-                      name: 'source-code'
+            stash includes: 'uploaded_code.txt, changed_sources.txt',
+                  name: 'source-code'
             }
         }
+
 
         /* -------------------------------------------------------
            GENERATE TESTS
