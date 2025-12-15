@@ -42,42 +42,45 @@ pipeline {
             agent {
                 docker {
                     image 'python:3.11-slim'
-                    args '-u root'
+                    args "-u root -v ${env.WORKSPACE}:${env.WORKSPACE}" // Mount workspace
                 }
             }
             steps {
-                echo "Generating Tests from uploaded code..."
+                dir("${env.WORKSPACE}") {  // Ensure container starts in workspace
+                    echo "Generating Tests from uploaded code..."
+                    sh '''
+                        python --version
+                        echo "===== CODE SENT TO TEST GENERATOR ====="
+                        cat uploaded_code.txt
+                        echo "======================================"
 
-                sh '''
-                    python --version
-                    echo "===== CODE SENT TO TEST GENERATOR ====="
-                    cat uploaded_code.txt
-                    echo "======================================"
-
-                    # Assuming generate_tests.py exists in repo
-                    if [ -f generate_tests.py ]; then
-                        TEST_OUTPUT=$(python generate_tests.py uploaded_code.txt)
-                        echo "===== GENERATED TEST CASES ====="
-                        echo "$TEST_OUTPUT"
-                        echo "================================"
-                    else
-                        echo "generate_tests.py not found!"
-                    fi
-                '''
+                        # Run test generator if it exists
+                        if [ -f generate_tests.py ]; then
+                            TEST_OUTPUT=$(python generate_tests.py uploaded_code.txt)
+                            echo "===== GENERATED TEST CASES ====="
+                            echo "$TEST_OUTPUT"
+                            echo "================================"
+                        else
+                            echo "generate_tests.py not found!"
+                        fi
+                    '''
+                }
             }
         }
 
         stage('Push Code to GitHub') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'github-creds', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
-                    sh '''
-                        git config user.name "admin"
-                        git config user.email "admin@codelens.com"
-                        
-                        git add uploaded_code.txt
-                        git commit -m "Add uploaded_code.txt from Jenkins" || echo "No changes to commit"
-                        git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
-                    '''
+                    dir("${env.WORKSPACE}") {
+                        sh '''
+                            git config user.name "admin"
+                            git config user.email "admin@codelens.com"
+
+                            git add uploaded_code.txt
+                            git commit -m "Add uploaded_code.txt from Jenkins" || echo "No changes to commit"
+                            git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
+                        '''
+                    }
                 }
             }
         }
@@ -85,7 +88,7 @@ pipeline {
         stage('Run Tests') {
             steps {
                 echo "Running Tests..."
-                // Add test running steps here if needed
+                // Add your test running commands here
             }
         }
 
