@@ -1,0 +1,64 @@
+import unittest
+
+class Node:
+    def __init__(self, data):
+        self.data = data
+        self.next = None
+
+
+class LinkedList:
+    def __init__(self):
+        self.head = None
+
+    
+    def add(self, data):
+        new_node = Node(data)
+
+        if self.head is None:
+            self.head = new_node
+            return
+
+        temp = self.head
+        while temp.next:
+            temp = temp.next
+        temp.next = new_node
+
+    
+    def display(self):
+        temp = self.head
+        while temp:
+            print(temp.data, end=" -> ")
+            temp = temp.next
+        print("None")
+
+class TestLinkedList(unittest.TestCase):
+
+    def test_add_empty_list(self):
+        ll = LinkedList()
+        ll.add(10)
+        self.assertEqual(ll.head.data, 10)
+        self.assertIsNone(ll.head.next)
+
+    def test_add_multiple_elements(self):
+        ll = LinkedList()
+        ll.add(10)
+        ll.add(20)
+        ll.add(30)
+
+        self.assertEqual(ll.head.data, 10)
+        self.assertEqual(ll.head.next.data, 20)
+        self.assertEqual(ll.head.next.next.data, 30)
+        self.assertIsNone(ll.head.next.next.next)
+
+    def test_add_different_data_types(self):
+         ll = LinkedList()
+         ll.add("hello")
+         ll.add(123)
+         ll.add(3.14)
+
+         self.assertEqual(ll.head.data, "hello")
+         self.assertEqual(ll.head.next.data, 123)
+         self.assertEqual(ll.head.next.next.data, 3.14)
+
+if __name__ == '__main__':
+    unittest.main()
