@@ -9,8 +9,8 @@ class Node:
 class BinaryTreeTest(unittest.TestCase):
 
     def test_node_creation(self):
-        node = Node(10)
-        self.assertEqual(node.data, 10)
+        node = Node(1)
+        self.assertEqual(node.data, 1)
         self.assertIsNone(node.left)
         self.assertIsNone(node.right)
 
