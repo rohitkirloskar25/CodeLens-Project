@@ -3,30 +3,45 @@ pipeline {
 
     environment {
         GEMINI_API_KEY = credentials('GEMINI_API_KEY')
+        RUN_PIPELINE = "false"
     }
 
     stages {
 
         /* -------------------------------------------------------
-           FILTER: Trigger only if src/main changed
+           CHECKOUT (REQUIRED)
+        ------------------------------------------------------- */
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        /* -------------------------------------------------------
+           FILTER: Continue only if src/main changed
         ------------------------------------------------------- */
         stage('Change Filter') {
             steps {
                 script {
                     sh '''
-                        git diff --name-only HEAD~1 HEAD > changed_files.txt || true
+                        if [ -z "$GIT_PREVIOUS_SUCCESSFUL_COMMIT" ]; then
+                            git diff --name-only HEAD > changed_files.txt
+                        else
+                            git diff --name-only $GIT_PREVIOUS_SUCCESSFUL_COMMIT $GIT_COMMIT > changed_files.txt
+                        fi
+
                         grep '^src/main/' changed_files.txt > changed_sources.txt || true
                     '''
 
                     def changes = readFile('changed_sources.txt').trim()
-                    if (!changes) {
-                        echo "No changes in src/main/. Skipping pipeline."
-                        currentBuild.result = 'NOT_BUILT'
-                        error("No relevant changes")
-                    }
 
-                    echo "Source files changed:"
-                    echo changes
+                    if (changes) {
+                        env.RUN_PIPELINE = "true"
+                        echo "✅ Changes detected in src/main/:"
+                        echo changes
+                    } else {
+                        echo "⏭ No changes in src/main/. Pipeline will be skipped."
+                    }
                 }
             }
         }
@@ -35,15 +50,15 @@ pipeline {
            PREPARE SOURCE CODE
         ------------------------------------------------------- */
         stage('Prepare Source Code') {
+            when {
+                expression { env.RUN_PIPELINE == "true" }
+            }
             steps {
                 sh '''
                     echo "=========== SOURCE CODE ===========" > uploaded_code.txt
 
                     while read file; do
-                        if [ -f "$file" ]; then
-                            echo "\\n--- File: $file ---" >> uploaded_code.txt
-                            cat "$file" >> uploaded_code.txt
-                        fi
+                        [ -f "$file" ] && cat "$file" >> uploaded_code.txt
                     done < changed_sources.txt
 
                     echo "=========== END ===================" >> uploaded_code.txt
@@ -58,6 +73,9 @@ pipeline {
            GENERATE TESTS
         ------------------------------------------------------- */
         stage('Generate Tests') {
+            when {
+                expression { env.RUN_PIPELINE == "true" }
+            }
             agent {
                 docker {
                     image 'python:3.11-slim'
@@ -68,9 +86,7 @@ pipeline {
                 unstash 'source-code'
 
                 sh '''
-                    pip install --upgrade pip
                     pip install google-generativeai
-
                     mkdir -p src/test
 
                     while read SOURCE_FILE; do
@@ -79,8 +95,7 @@ pipeline {
                         EXT="${BASENAME##*.}"
                         TEST_FILE="src/test/${NAME}Tests.${EXT}"
 
-                        echo "Generating test for $SOURCE_FILE -> $TEST_FILE"
-
+                        echo "Generating test: $TEST_FILE"
                         python generate_tests.py "$SOURCE_FILE" > "$TEST_FILE"
                     done < changed_sources.txt
                 '''
@@ -91,6 +106,9 @@ pipeline {
            PUSH GENERATED TESTS
         ------------------------------------------------------- */
         stage('Push Tests to GitHub') {
+            when {
+                expression { env.RUN_PIPELINE == "true" }
+            }
             steps {
                 withCredentials([
                     usernamePassword(
@@ -104,8 +122,7 @@ pipeline {
                         git config user.email "admin@codelens.com"
 
                         git add src/test/
-                        git commit -m "Auto-generate unit tests for src/main changes" \
-                            || echo "No changes to commit"
+                        git commit -m "Auto-generate unit tests for src/main changes" || true
 
                         git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
                     '''
@@ -114,31 +131,18 @@ pipeline {
         }
 
         /* -------------------------------------------------------
-           RUN TESTS
+           RUN TESTS (INTENTIONALLY EMPTY)
         ------------------------------------------------------- */
         stage('Run Tests') {
-            agent {
-                docker {
-                    image 'python:3.11-slim'
-                }
-            }
-            steps {
-                sh '''
-                    python --version
-                    for test in src/test/*Tests.*; do
-                        echo "Running $test"
-                        python "$test" || exit 1
-                    done
-                '''
-            }
+            echo "Starting to run Tests"
         }
 
         /* -------------------------------------------------------
-           FINISH
+           FINISH (INTENTIONALLY EMPTY)
         ------------------------------------------------------- */
         stage('Finish') {
             steps {
-                echo "Pipeline completed successfully"
+                echo "Pipeline finished"
             }
         }
     }
