@@ -46,11 +46,13 @@ pipeline {
                 }
             }
             steps {
-                // Retrieve stashed code
                 unstash 'uploaded-code'
                 echo "Generating Tests from uploaded code..."
                 sh '''
                     python --version
+                    pip install --upgrade pip
+                    pip install google-generativeai
+
                     echo "===== CODE SENT TO TEST GENERATOR ====="
                     cat uploaded_code.txt
                     echo "======================================"
