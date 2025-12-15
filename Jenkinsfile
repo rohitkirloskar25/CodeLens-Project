@@ -170,7 +170,7 @@ pipeline {
                     args '-u root'
                 }
             }
-            steps {
+            steps {
                 // Get the generated tests from the previous stage's stash
                 unstash 'generated-tests' 
                 // Get the changed_sources.txt file for iterating over tests
