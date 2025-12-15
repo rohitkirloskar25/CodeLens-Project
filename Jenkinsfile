@@ -63,8 +63,7 @@ pipeline {
                     echo "=========== END ===================" >> uploaded_code.txt
                 '''
 
-                stash includes: 'uploaded_code.txt, changed_sources.txt',
-                      name: 'source-code'
+                stash includes: 'uploaded_code.txt, changed_sources.txt', name: 'source-code'
             }
         }
 
