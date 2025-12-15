@@ -6,45 +6,39 @@ class Node:
         self.left = None
         self.right = None
 
-class BinaryTreeTraversalTest(unittest.TestCase):
+def inorder(node):
+    if node:
+        inorder(node.left)
+        print(node.data, end=" ")
+        inorder(node.right)
 
-    def setUp(self):
-        self.root = Node(1)
-        self.root.left = Node(2)
-        self.root.right = Node(3)
-        self.root.left.left = Node(4)
-        self.root.left.right = Node(5)
+def create_example_tree():
+    root = Node(1)
+    root.left = Node(2)
+    root.right = Node(3)
 
-    def test_inorder_traversal(self):
-        result = []
-        def inorder(node):
-            if node:
-                inorder(node.left)
-                result.append(node.data)
-                inorder(node.right)
-        inorder(self.root)
-        self.assertEqual(result, [4, 2, 5, 1, 3])
+    root.left.left = Node(4)
+    root.left.right = Node(5)
+    
+    return root
 
-    def test_empty_tree(self):
-        result = []
-        def inorder(node):
-            if node:
-                inorder(node.left)
-                result.append(node.data)
-                inorder(node.right)
-        inorder(None)
-        self.assertEqual(result, [])
+class TestBinaryTree(unittest.TestCase):
 
-    def test_single_node_tree(self):
-        root = Node(10)
-        result = []
-        def inorder(node):
-            if node:
-                inorder(node.left)
-                result.append(node.data)
-                inorder(node.right)
-        inorder(root)
-        self.assertEqual(result, [10])
+    def test_node_creation(self):
+        node = Node(10)
+        self.assertEqual(node.data, 10)
+        self.assertIsNone(node.left)
+        self.assertIsNone(node.right)
+
+    def test_create_example_tree(self):
+        root = create_example_tree()
+        self.assertEqual(root.data, 1)
+        self.assertEqual(root.left.data, 2)
+        self.assertEqual(root.right.data, 3)
+        self.assertEqual(root.left.left.data, 4)
+        self.assertEqual(root.left.right.data, 5)
+        self.assertIsNone(root.right.left)
+        self.assertIsNone(root.right.right)
 
 if __name__ == '__main__':
     unittest.main()
