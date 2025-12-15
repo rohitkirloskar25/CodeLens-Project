@@ -116,7 +116,7 @@ pipeline {
             when {
                 expression { env.RUN_PIPELINE == "true" }
             }
-            steps {
+            steps {    
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'github-creds',
@@ -124,16 +124,27 @@ pipeline {
                         passwordVariable: 'GIT_TOKEN'
                     )
                 ]) {
-                    sh '''
-                        git config user.name "admin"
-                        git config user.email "admin@codelens.com"
+                sh '''
+                    git config user.name "admin"
+                    git config user.email "admin@codelens.com"
 
-                        git add src/test/
-                        git commit -m "Auto-generate unit tests for src/main changes" \
-                            || echo "No changes to commit"
+                    while read SOURCE_FILE; do
+                        BASENAME=$(basename "$SOURCE_FILE")
+                        NAME="${BASENAME%.*}"
+                        EXT="${BASENAME##*.}"
+                        TEST_FILE="src/test/${NAME}Test.${EXT}"
 
-                        git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
-                    '''
+                        if [ -f "$TEST_FILE" ]; then
+                            echo "Adding $TEST_FILE"
+                            git add "$TEST_FILE"
+                        fi
+                    done < changed_sources.txt
+
+                    git commit -m "Auto-generate unit tests for src/main changes" \
+                        || echo "No changes to commit"
+
+                    git push https://$GIT_USER:$GIT_TOKEN@github.com/rohitkirloskar25/CodeLens-Project.git HEAD:main
+                '''
                 }
             }
         }
